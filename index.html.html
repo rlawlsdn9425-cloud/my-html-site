@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>[생명과학 II] 유전자 발현 조절 통합 인터랙티브 시뮬레이터</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --border: #cbd5e1;
+            --success: #16a34a;
+            --danger: #dc2626;
+            --warning: #ea580c;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--bg); color: #0f172a; padding: 20px; line-height: 1.5; }
+        .container { max-width: 1000px; margin: 0 auto; }
+
+        header { text-align: center; margin-bottom: 20px; }
+        header h1 { font-size: 1.8rem; color: #1e3a8a; margin-bottom: 4px; }
+        header p { color: #64748b; font-size: 0.95rem; }
+
+        /* 메인 탭 메뉴 */
+        .main-tabs { display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 2px solid var(--border); }
+        .tab-btn { padding: 12px 24px; font-size: 1rem; font-weight: 700; border: none; background: none; color: #64748b; cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.2s; }
+        .tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+        .tab-content { display: none; background: var(--card); border-radius: 12px; padding: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: 1px solid var(--border); }
+        .tab-content.active { display: block; }
+
+        /* 진핵생물 파이프라인 바 */
+        .pipeline-bar { display: flex; gap: 8px; margin-bottom: 16px; background: #e2e8f0; padding: 6px; border-radius: 10px; }
+        .step-node { flex: 1; background: #fff; padding: 10px; border-radius: 8px; text-align: center; font-size: 0.82rem; font-weight: 700; color: #64748b; border: 2px solid transparent; transition: all 0.3s; }
+        .step-node.pass { background: #dcfce7; color: #15803d; border-color: #22c55e; }
+        .step-node.block { background: #fee2e2; color: #b91c1c; border-color: #ef4444; }
+
+        /* 컨트롤 패널 */
+        .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; background: #f1f5f9; padding: 16px; border-radius: 8px; margin-bottom: 16px; }
+        .control-group { display: flex; flex-direction: column; gap: 6px; }
+        .control-group label { font-weight: 700; font-size: 0.85rem; color: #334155; }
+
+        .btn-group { display: flex; gap: 6px; }
+        .btn { flex: 1; padding: 8px; font-size: 0.8rem; font-weight: 700; border: 1px solid var(--border); background: #fff; color: #64748b; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+        .btn.active-on { background: var(--success); color: #fff; border-color: var(--success); }
+        .btn.active-off { background: var(--danger); color: #fff; border-color: var(--danger); }
+
+        select { padding: 8px; border-radius: 6px; border: 1px solid var(--border); font-size: 0.85rem; background: #fff; font-weight: 600; }
+
+        canvas { width: 100%; height: 260px; background: #0f172a; border-radius: 8px; display: block; margin-bottom: 16px; }
+
+        /* 상태 결과창 */
+        .status-box { background: #f8fafc; border-left: 5px solid var(--primary); padding: 14px 18px; border-radius: 6px; margin-bottom: 16px; }
+        .status-title { font-weight: 800; font-size: 1rem; margin-bottom: 6px; display: flex; justify-content: space-between; }
+        .status-desc { font-size: 0.9rem; color: #334155; }
+
+        .meter-box { margin-top: 10px; }
+        .meter-label { display: flex; justify-content: space-between; font-weight: 700; font-size: 0.85rem; margin-bottom: 4px; }
+        .meter-bar { height: 12px; background: #e2e8f0; border-radius: 6px; overflow: hidden; }
+        .meter-fill { height: 100%; width: 0%; background: var(--success); transition: width 0.4s ease; }
+
+        .summary-note { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px; font-size: 0.85rem; color: #1e40af; }
+        .summary-note h4 { font-weight: 800; margin-bottom: 4px; }
+        .summary-note ul { padding-left: 18px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>🔬 [생명과학 II] 유전자 발현 조절 시뮬레이터</h1>
+        <p>원핵생물의 오페론 시스템 vs 진핵생물의 다단계 정교 조절 메커니즘</p>
+    </header>
+
+    <!-- 탭 이동 버튼 -->
+    <div class="main-tabs">
+        <button class="tab-btn active" onclick="switchMainTab('prokaryote')">🧫 1. 원핵생물 (락 오페론)</button>
+        <button class="tab-btn" onclick="switchMainTab('eukaryote')">🧬 2. 진핵생물 (다단계 조절)</button>
+    </div>
+
+    <!-- 1. 원핵생물 탭 -->
+    <div id="prokaryote-tab" class="tab-content active">
+        <div class="controls">
+            <div class="control-group">
+                <label>젖당 (Lactose) 유무</label>
+                <div class="btn-group">
+                    <button class="btn active-off" id="btn-lac-off" onclick="setProState('lactose', false)">없음 (OFF)</button>
+                    <button class="btn" id="btn-lac-on" onclick="setProState('lactose', true)">있음 (ON)</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>포도당 (Glucose) 농도</label>
+                <div class="btn-group">
+                    <button class="btn active-on" id="btn-glu-high" onclick="setProState('glucose', 'high')">높음 (High)</button>
+                    <button class="btn" id="btn-glu-low" onclick="setProState('glucose', 'low')">낮음 (Low)</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>변이주 실험 조건</label>
+                <select id="pro-mutation" onchange="setProState('mutation', this.value)">
+                    <option value="normal">야생형 (정상)</option>
+                    <option value="operator_mut">작동자(O) 결함 변이주</option>
+                    <option value="repressor_mut">억제 단백질 변이주 (결합 불가)</option>
+                </select>
+            </div>
+        </div>
+
+        <canvas id="proCanvas"></canvas>
+
+        <div class="status-box">
+            <div class="status-title">
+                <span>원핵생물 오페론 작동 상태</span>
+                <span id="pro-badge" style="color: var(--danger);">[ 전사 차단 ]</span>
+            </div>
+            <div class="status-desc" id="pro-desc">
+                • 억제 단백질이 작동자(Operator)에 단단히 결합하여 RNA 중합 효소의 이동을 차단합니다.
+            </div>
+            <div class="meter-box">
+                <div class="meter-label">
+                    <span>락토오스 분해 효소 생성률</span>
+                    <span id="pro-rate-num">0%</span>
+                </div>
+                <div class="meter-bar">
+                    <div class="meter-fill" id="pro-rate-fill" style="width: 0%;"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="summary-note">
+            <h4>💡 원핵생물 락 오페론 핵심 개념</h4>
+            <ul>
+                <li><b>음성 조절</b>: 젖당(알로락토오스)이 억제 단백질에 결합하면 억제 단백질의 입체 구조가 변하여 작동자(O)에서 탈착 ➔ 전사 허용</li>
+                <li><b>양성 조절</b>: 포도당 농도 감소 ➔ 세포 내 cAMP 상승 ➔ CAP-cAMP 복합체가 프로모터에 결합 ➔ RNA 중합 효소 결합 촉진 (전사 극대화)</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 2. 진핵생물 탭 -->
+    <div id="eukaryote-tab" class="tab-content">
+        <!-- 4단계 진행 표시바 -->
+        <div class="pipeline-bar">
+            <div class="step-node" id="step1-node">1단계: 염색질 이완</div>
+            <div class="step-node" id="step2-node">2단계: 전사 개시 복합체</div>
+            <div class="step-node" id="step3-node">3단계: 선택적 스플라이싱</div>
+            <div class="step-node" id="step4-node">4단계: 번역 및 RNAi</div>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>1단계: 염색질 구조 (전사 전)</label>
+                <div class="btn-group">
+                    <button class="btn active-off" id="btn-ace-off" onclick="setEukVal('acetylation', false)">DNA 메틸화 (응축)</button>
+                    <button class="btn" id="btn-ace-on" onclick="setEukVal('acetylation', true)">히스톤 아세틸화 (이완)</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>2단계: 원거리 인핸서 (전사 개시)</label>
+                <div class="btn-group">
+                    <button class="btn active-off" id="btn-enh-off" onclick="setEukVal('enhancer', false)">활성 단백질 미결합</button>
+                    <button class="btn" id="btn-enh-on" onclick="setEukVal('enhancer', true)">활성 단백질 결합 (Looping)</button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>3단계: 선택적 스플라이싱 조합</label>
+                <select id="euk-splicing" onchange="setEukVal('splicing', this.value)">
+                    <option value="exonA">조직 A: [엑손 1-2-4] 조합</option>
+                    <option value="exonB">조직 B: [엑손 1-3-4] 조합</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label>4단계: RNA 간섭 (miRNA)</label>
+                <div class="btn-group">
+                    <button class="btn active-on" id="btn-mirna-off" onclick="setEukVal('mirna', false)">miRNA 없음 (정상 번역)</button>
+                    <button class="btn" id="btn-mirna-on" onclick="setEukVal('mirna', true)">miRNA 작동 (mRNA 분해)</button>
+                </div>
+            </div>
+        </div>
+
+        <canvas id="eukCanvas"></canvas>
+
+        <div class="status-box">
+            <div class="status-title">
+                <span>진핵생물 다단계 발현 리포트</span>
+                <span id="euk-badge" style="color: var(--danger);">[ 전사 차단 ]</span>
+            </div>
+            <div class="status-desc" id="euk-desc">
+                • DNA 메틸화 상태: 염색질이 뉴클레오솜 구조로 빽빽하게 응축되어 있습니다.
+            </div>
+            <div class="meter-box">
+                <div class="meter-label">
+                    <span>최종 기능성 단백질 합성률</span>
+                    <span id="euk-rate-num">0%</span>
+                </div>
+                <div class="meter-bar">
+                    <div class="meter-fill" id="euk-rate-fill" style="width: 0%;"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="summary-note">
+            <h4>💡 진핵생물 다단계 조절 핵심 개념</h4>
+            <ul>
+                <li><b>히스톤 아세틸화</b>: 아세틸기(+) 전하 감소 ➔ DNA 결합력 약화 ➔ 염색질 이완 ➔ 전사 촉진</li>
+                <li><b>인핸서 & DNA 굽힘</b>: 인핸서에 전사 활성 단백질 결합 + DNA 굽힘 단백질 작동 ➔ 프로모터의 RNA 중합 효소 II 복합체 강력 활성화</li>
+                <li><b>선택적 스플라이싱</b>: 하나의 pre-mRNA에서 인트론 제거 후 엑손을 다양하게 조합 ➔ 조직별로 서로 다른 단백질 생성</li>
+                <li><b>miRNA (RNA 간섭)</b>: 상보적 mRNA에 결합하여 분해하거나 번역을 차단하여 발현 억제</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 탭 전환
+    function switchMainTab(tabName) {
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+        if (tabName === 'prokaryote') {
+            document.querySelectorAll('.tab-btn')[0].classList.add('active');
+            document.getElementById('prokaryote-tab').classList.add('active');
+            updateProUI();
+        } else {
+            document.querySelectorAll('.tab-btn')[1].classList.add('active');
+            document.getElementById('eukaryote-tab').classList.add('active');
+            updateEukUI();
+        }
+    }
+
+    // ==========================================
+    // 1. 원핵생물 (락 오페론) 시뮬레이션
+    // ==========================================
+    let proState = { lactose: false, glucose: 'high', mutation: 'normal' };
+    let proAnimId = null;
+    let rnaPolX = 180;
+
+    function setProState(key, val) {
+        proState[key] = val;
+
+        if (key === 'lactose') {
+            document.getElementById('btn-lac-off').className = 'btn ' + (!val ? 'active-off' : '');
+            document.getElementById('btn-lac-on').className = 'btn ' + (val ? 'active-on' : '');
+        }
+        if (key === 'glucose') {
+            document.getElementById('btn-glu-high').className = 'btn ' + (val === 'high' ? 'active-on' : '');
+            document.getElementById('btn-glu-low').className = 'btn ' + (val === 'low' ? 'active-on' : '');
+        }
+
+        updateProUI();
+    }
+
+    function updateProUI() {
+        const canvas = document.getElementById('proCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = 260;
+
+        if (proAnimId) cancelAnimationFrame(proAnimId);
+
+        let repressorAttached = !proState.lactose;
+        if (proState.mutation === 'operator_mut' || proState.mutation === 'repressor_mut') {
+            repressorAttached = false;
+        }
+
+        let isTranscribing = !repressorAttached;
+        let rate = 0;
+        let badgeText = "[ 전사 차단 ]";
+        let badgeColor = "var(--danger)";
+        let descText = "";
+
+        if (repressorAttached) {
+            rate = 0;
+            descText = "• 억제 단백질이 작동자(O)에 단단히 결합하여 RNA 중합 효소의 이동을 막고 있습니다.<br>• lacZ, lacY, lacA 효소가 생성되지 않습니다.";
+        } else {
+            if (proState.glucose === 'low') {
+                rate = 100;
+                badgeText = "[ 전사 극대화 (MAX - 100%) ]";
+                badgeColor = "var(--success)";
+                descText = "• 젖당 결합으로 억제 단백질이 분리되었습니다.<br>• 포도당이 적어 **cAMP-CAP 복합체**가 프로모터에 결합하여 전사를 극대화합니다!";
+            } else {
+                rate = 25;
+                badgeText = "[ 기본 전사 진행 (LOW - 25%) ]";
+                badgeColor = "var(--warning)";
+                descText = "• 억제 단백질은 분리되어 전사가 진행되나, 포도당이 존재하여 CAP 촉진이 없어 전사량이 기본 수준입니다.";
+            }
+        }
+
+        document.getElementById('pro-badge').innerText = badgeText;
+        document.getElementById('pro-badge').style.color = badgeColor;
+        document.getElementById('pro-desc').innerHTML = descText;
+        document.getElementById('pro-rate-num').innerText = rate + "%";
+        document.getElementById('pro-rate-fill').style.width = rate + "%";
+
+        function renderPro() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // DNA 바탕 가닥
+            ctx.fillStyle = "#334155";
+            ctx.fillRect(40, 130, canvas.width - 80, 20);
+
+            // 유전자 영역 표시 (I, P, O, Z, Y, A)
+            const regions = [
+                { name: 'I (조절)', x: 60, w: 70, color: '#94a3b8' },
+                { name: 'P (프로모터)', x: 140, w: 80, color: '#3b82f6' },
+                { name: 'O (작동자)', x: 230, w: 70, color: '#ef4444' },
+                { name: 'lacZ', x: 310, w: 80, color: '#10b981' },
+                { name: 'lacY', x: 400, w: 80, color: '#059669' },
+                { name: 'lacA', x: 490, w: 80, color: '#047857' }
+            ];
+
+            regions.forEach(r => {
+                ctx.fillStyle = r.color;
+                ctx.fillRect(r.x, 130, r.w, 20);
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "bold 12px sans-serif";
+                ctx.fillText(r.name, r.x + 8, 145);
+            });
+
+            // CAP-cAMP 결합 (포도당 낮을 때)
+            if (proState.glucose === 'low') {
+                ctx.fillStyle = "#f59e0b";
+                ctx.beginPath();
+                ctx.arc(150, 105, 14, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "10px sans-serif";
+                ctx.fillText("CAP", 140, 109);
+            }
+
+            // 억제 단백질 (Repressor)
+            if (repressorAttached) {
+                ctx.fillStyle = "#dc2626";
+                ctx.fillRect(240, 95, 50, 30);
+                ctx.fillStyle = "#fff";
+                ctx.font = "bold 11px sans-serif";
+                ctx.fillText("억제단백질", 242, 114);
+            } else {
+                // 분리된 억제 단백질
+                ctx.fillStyle = "#dc2626";
+                ctx.fillRect(240, 30, 50, 30);
+                ctx.fillStyle = "#fff";
+                ctx.font = "bold 11px sans-serif";
+                ctx.fillText("억제단백질", 242, 48);
+
+                if (proState.lactose) {
+                    ctx.fillStyle = "#facc15";
+                    ctx.beginPath();
+                    ctx.arc(285, 45, 8, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            // RNA 중합효소 애니메이션
+            ctx.fillStyle = "#8b5cf6";
+            ctx.beginPath();
+            ctx.arc(rnaPolX, 120, 22, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#fff";
+            ctx.font = "bold 11px sans-serif";
+            ctx.fillText("RNA Pol", rnaPolX - 20, 124);
+
+            if (isTranscribing) {
+                rnaPolX += (rate === 100 ? 2.2 : 1.2);
+                if (rnaPolX > 560) rnaPolX = 150;
+
+                if (rnaPolX > 310) {
+                    ctx.strokeStyle = "#f43f5e";
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.moveTo(310, 170);
+                    ctx.lineTo(rnaPolX, 170);
+                    ctx.stroke();
+                    ctx.fillStyle = "#f43f5e";
+                    ctx.font = "12px sans-serif";
+                    ctx.fillText("mRNA 전사 중...", 310, 195);
+                }
+            } else {
+                rnaPolX = 180;
+                ctx.fillStyle = "#ef4444";
+                ctx.font = "bold 14px sans-serif";
+                ctx.fillText("X (전사 막힘)", 230, 180);
+            }
+
+            proAnimId = requestAnimationFrame(renderPro);
+        }
+
+        renderPro();
+    }
+
+
+    // ==========================================
+    // 2. 진핵생물 (다단계 조절) 시뮬레이션
+    // ==========================================
+    let eukState = {
+        acetylation: false,
+        enhancer: false,
+        splicing: 'exonA',
+        mirna: false
+    };
+
+    let eukAnimId = null;
+
+    function setEukVal(key, val) {
+        eukState[key] = val;
+
+        if (key === 'acetylation') {
+            document.getElementById('btn-ace-off').className = 'btn ' + (!val ? 'active-off' : '');
+            document.getElementById('btn-ace-on').className = 'btn ' + (val ? 'active-on' : '');
+        }
+        if (key === 'enhancer') {
+            document.getElementById('btn-enh-off').className = 'btn ' + (!val ? 'active-off' : '');
+            document.getElementById('btn-enh-on').className = 'btn ' + (val ? 'active-on' : '');
+        }
+        if (key === 'mirna') {
+            document.getElementById('btn-mirna-off').className = 'btn ' + (!val ? 'active-on' : '');
+            document.getElementById('btn-mirna-on').className = 'btn ' + (val ? 'active-off' : '');
+        }
+
+        updateEukUI();
+    }
+
+    function updateEukUI() {
+        const canvas = document.getElementById('eukCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = 260;
+
+        if (eukAnimId) cancelAnimationFrame(eukAnimId);
+
+        const s1 = document.getElementById('step1-node');
+        const s2 = document.getElementById('step2-node');
+        const s3 = document.getElementById('step3-node');
+        const s4 = document.getElementById('step4-node');
+
+        let rate = 0;
+        let badgeText = "";
+        let badgeColor = "var(--danger)";
+        let descText = "";
+
+        if (!eukState.acetylation) {
+            s1.className = 'step-node block';
+            s2.className = 'step-node';
+            s3.className = 'step-node';
+            s4.className = 'step-node';
+
+            rate = 0;
+            badgeText = "[ 1단계 막힘: 염색질 응축 ]";
+            descText = "• <b>DNA 메틸화 상태</b>: DNA가 히스톤 단백질을 감아 빽빽하게 응축(응축 상태)되어 있어 전사 인자와 RNA 중합 효소가 접근할 수 없습니다.";
+        } else if (!eukState.enhancer) {
+            s1.className = 'step-node pass';
+            s2.className = 'step-node block';
+            s3.className = 'step-node';
+            s4.className = 'step-node';
+
+            rate = 15;
+            badgeText = "[ 2단계 저빈도 전사 (15%) ]";
+            badgeColor = "var(--warning)";
+            descText = "• <b>염색질 이완 성공</b>: 전사 가능 상태입니다.<br>• 그러나 인핸서에 활성 단백질이 결합하지 않아 전사 개시 복합체의 활성이 매우 낮습니다.";
+        } else if (eukState.mirna) {
+            s1.className = 'step-node pass';
+            s2.className = 'step-node pass';
+            s3.className = 'step-node pass';
+            s4.className = 'step-node block';
+
+            rate = 0;
+            badgeText = "[ 4단계 막힘: miRNA에 의한 mRNA 분해 ]";
+            descText = "• 전사 및 선택적 스플라이싱까지 정상 완료되었으나, <b>miRNA-RISC 복합체</b>가 mRNA를 분해하여 번역이 차단되었습니다.";
+        } else {
+            s1.className = 'step-node pass';
+            s2.className = 'step-node pass';
+            s3.className = 'step-node pass';
+            s4.className = 'step-node pass';
+
+            rate = 100;
+            badgeText = "[ 전과정 발현 성공 (100%) ]";
+            badgeColor = "var(--success)";
+            const combo = eukState.splicing === 'exonA' ? '엑손 1-2-4' : '엑손 1-3-4';
+            descText = `• <b>모든 단계 정상 작동!</b> 염색질 이완 ➔ DNA 굽힘전사 ➔ 선택적 스플라이싱(<b>${combo}</b>) ➔ 리보솜 번역을 거쳐 최종 단백질이 합성되었습니다.`;
+        }
+
+        document.getElementById('euk-badge').innerText = badgeText;
+        document.getElementById('euk-badge').style.color = badgeColor;
+        document.getElementById('euk-desc').innerHTML = descText;
+        document.getElementById('euk-rate-num').innerText = rate + "%";
+        document.getElementById('euk-rate-fill').style.width = rate + "%";
+
+        let polX = 280;
+
+        function renderEuk() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (!eukState.acetylation) {
+                ctx.fillStyle = "#94a3b8";
+                ctx.font = "bold 13px sans-serif";
+                ctx.fillText("🔒 응축된 염색질 (DNA 메틸화) - 접근 불가", 40, 45);
+
+                for (let i = 0; i < 7; i++) {
+                    let x = 70 + i * 55;
+                    ctx.beginPath();
+                    ctx.arc(x, 140, 22, 0, Math.PI * 2);
+                    ctx.fillStyle = "#475569";
+                    ctx.fill();
+                    ctx.strokeStyle = "#64748b";
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+
+                    ctx.fillStyle = "#cbd5e1";
+                    ctx.font = "10px sans-serif";
+                    ctx.fillText("히스톤", x - 14, 144);
+                }
+            } else {
+                if (eukState.enhancer) {
+                    ctx.strokeStyle = "#38bdf8";
+                    ctx.lineWidth = 5;
+                    ctx.beginPath();
+                    ctx.arc(150, 130, 50, Math.PI * 0.2, Math.PI * 1.8);
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.moveTo(195, 170);
+                    ctx.lineTo(canvas.width - 40, 170);
+                    ctx.stroke();
+
+                    ctx.fillStyle = "#f59e0b";
+                    ctx.beginPath();
+                    ctx.arc(150, 80, 14, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = "#fff";
+                    ctx.font = "10px sans-serif";
+                    ctx.fillText("활성단백질", 126, 84);
+
+                    ctx.fillStyle = "#ec4899";
+                    ctx.beginPath();
+                    ctx.arc(100, 130, 12, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = "#fff";
+                    ctx.fillText("굽힘", 90, 134);
+
+                    ctx.fillStyle = "#10b981";
+                    ctx.beginPath();
+                    ctx.arc(260, 170, 22, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = "#fff";
+                    ctx.font = "bold 11px sans-serif";
+                    ctx.fillText("RNA Pol II", 234, 174);
+
+                    if (!eukState.mirna) {
+                        polX += 1.8;
+                        if (polX > canvas.width - 80) polX = 280;
+
+                        ctx.strokeStyle = "#f43f5e";
+                        ctx.lineWidth = 4;
+                        ctx.beginPath();
+                        ctx.moveTo(280, 210);
+                        ctx.lineTo(polX, 210);
+                        ctx.stroke();
+
+                        ctx.fillStyle = "#f43f5e";
+                        ctx.font = "12px sans-serif";
+                        ctx.fillText("pre-mRNA 전사 진행 중...", 280, 230);
+                    } else {
+                        ctx.fillStyle = "#ef4444";
+                        ctx.font = "bold 13px sans-serif";
+                        ctx.fillText("✂️ miRNA-RISC 복합체에 의해 mRNA 분해됨", 280, 220);
+                    }
+                } else {
+                    ctx.strokeStyle = "#38bdf8";
+                    ctx.lineWidth = 5;
+                    ctx.beginPath();
+                    ctx.moveTo(40, 140);
+                    ctx.lineTo(canvas.width - 40, 140);
+                    ctx.stroke();
+
+                    ctx.fillStyle = "#f59e0b"; ctx.fillRect(60, 135, 50, 10);
+                    ctx.fillStyle = "#3b82f6"; ctx.fillRect(170, 135, 60, 10);
+                    ctx.fillStyle = "#10b981"; ctx.fillRect(280, 135, 180, 10);
+
+                    ctx.fillStyle = "#cbd5e1";
+                    ctx.font = "12px sans-serif";
+                    ctx.fillText("인핸서", 65, 120);
+                    ctx.fillText("프로모터", 175, 120);
+                    ctx.fillText("유전자 부위", 330, 120);
+                    ctx.fillText("🔓 이완된 DNA (전사 활성화 준비 완료)", 40, 50);
+                }
+            }
+
+            eukAnimId = requestAnimationFrame(renderEuk);
+        }
+
+        renderEuk();
+    }
+
+    // 초기 실행
+    window.onload = () => {
+        updateProUI();
+    };
+</script>
+
+</body>
+</html>
